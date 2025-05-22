@@ -1,75 +1,114 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { resetPassword } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { useToast } from "@/components/ui/use-toast"
+import { Loader2 } from "lucide-react"
+import { getSupabaseBrowserClient } from "@/lib/supabase/supabaseBrowserClient"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function ForgotPasswordPage() {
+  const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [isSubmitted, setIsSubmitted] = useState(false)
+  const router = useRouter()
+  const { toast } = useToast()
+  const supabase = getSupabaseBrowserClient()
 
-  async function handleSubmit(formData: FormData) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     setIsLoading(true)
-    setMessage(null)
 
     try {
-      const result = await resetPassword(formData)
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
 
-      if (result.error) {
-        setMessage({ type: "error", text: result.error })
-      } else if (result.success) {
-        setMessage({ type: "success", text: result.message })
+      if (error) {
+        throw error
       }
-    } catch (error) {
-      setMessage({ type: "error", text: "An unexpected error occurred" })
+
+      setIsSubmitted(true)
+    } catch (error: any) {
+      console.error("Password reset error:", error)
+      toast({
+        title: "Password reset failed",
+        description: error.message || "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
-          <CardDescription>Enter your email address and we'll send you a link to reset your password</CardDescription>
+          <div className="flex justify-center mb-4">
+            <div className="flex items-center gap-2 font-bold text-2xl">
+              <span className="text-primary">SSG</span> Digi
+            </div>
+          </div>
+          <CardTitle className="text-2xl font-bold text-center">Forgot Password</CardTitle>
+          <CardDescription className="text-center">
+            Enter your email address and we'll send you a link to reset your password
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          {message && (
-            <Alert className={`mb-4 ${message.type === "success" ? "bg-green-50" : "bg-red-50"}`}>
-              <AlertDescription className={message.type === "success" ? "text-green-800" : "text-red-800"}>
-                {message.text}
+        {isSubmitted ? (
+          <div className="p-6">
+            <Alert className="mb-4 bg-green-50 text-green-800 border-green-200">
+              <AlertDescription>
+                If an account exists with this email, you will receive a password reset link shortly. Please check your
+                email.
               </AlertDescription>
             </Alert>
-          )}
-          <form action={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email
-              </label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="block w-full rounded-md border-gray-300 shadow-sm"
-              />
-            </div>
-            <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading ? "Sending..." : "Send Reset Link"}
+            <Button className="w-full mt-4" onClick={() => router.push("/login")}>
+              Return to Login
             </Button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="john@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+            </CardContent>
+            <CardFooter className="flex flex-col gap-2">
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send Reset Link"
+                )}
+              </Button>
+              <div className="text-center text-sm mt-2">
+                Remember your password?{" "}
+                <Link href="/login" className="text-primary hover:underline">
+                  Sign in
+                </Link>
+              </div>
+            </CardFooter>
           </form>
-        </CardContent>
-        <CardFooter className="flex justify-center">
-          <Link href="/login" className="text-sm text-blue-600 hover:text-blue-500">
-            Back to login
-          </Link>
-        </CardFooter>
+        )}
       </Card>
     </div>
   )

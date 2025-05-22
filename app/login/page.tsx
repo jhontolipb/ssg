@@ -3,40 +3,52 @@
 import type React from "react"
 
 import { useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useAuth } from "@/components/auth-provider"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useToast } from "@/components/ui/use-toast"
 import { Loader2 } from "lucide-react"
+import { getSupabaseBrowserClient } from "@/lib/supabase/supabaseBrowserClient"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const { login } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { toast } = useToast()
+  const supabase = getSupabaseBrowserClient()
+
+  const isRegistered = searchParams.get("registered") === "true"
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    setError(null)
 
     try {
-      const success = await login(email, password)
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-      if (success) {
-        router.push("/dashboard")
-      } else {
-        setError("Invalid email or password. Please try again.")
+      if (error) {
+        throw error
       }
-    } catch (error) {
+
+      // Redirect to dashboard on successful login
+      router.push("/dashboard")
+      router.refresh()
+    } catch (error: any) {
       console.error("Login error:", error)
-      setError("An unexpected error occurred. Please try again.")
+      toast({
+        title: "Login failed",
+        description: error.message || "Invalid email or password. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -51,13 +63,15 @@ export default function LoginPage() {
               <span className="text-primary">SSG</span> Digi
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold text-center">Sign in to your account</CardTitle>
-          <CardDescription className="text-center">Enter your credentials to access the platform</CardDescription>
+          <CardTitle className="text-2xl font-bold text-center">Sign in to SSG Digi</CardTitle>
+          <CardDescription className="text-center">Enter your credentials to access your account</CardDescription>
         </CardHeader>
-        {error && (
+        {isRegistered && (
           <div className="px-6">
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
+            <Alert className="mb-4 bg-green-50 text-green-800 border-green-200">
+              <AlertDescription>
+                Registration successful! Please check your email to confirm your account before logging in.
+              </AlertDescription>
             </Alert>
           </div>
         )}
@@ -68,7 +82,7 @@ export default function LoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@ssgdigi.edu"
+                placeholder="john@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -84,7 +98,6 @@ export default function LoginPage() {
               <Input
                 id="password"
                 type="password"
-                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required

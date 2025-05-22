@@ -1,89 +1,156 @@
 "use client"
 
-import { useState } from "react"
+import type React from "react"
+
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { updatePassword } from "@/app/actions/auth"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { useToast } from "@/components/ui/use-toast"
+import { Loader2 } from "lucide-react"
+import { getSupabaseBrowserClient } from "@/lib/supabase/supabaseBrowserClient"
 
 export default function ResetPasswordPage() {
-  const router = useRouter()
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [isValidLink, setIsValidLink] = useState(true)
+  const router = useRouter()
+  const { toast } = useToast()
+  const supabase = getSupabaseBrowserClient()
 
-  async function handleSubmit(formData: FormData) {
+  useEffect(() => {
+    // Check if the user is authenticated with a recovery token
+    const checkSession = async () => {
+      const { data, error } = await supabase.auth.getSession()
+      if (error || !data.session) {
+        setIsValidLink(false)
+      }
+    }
+
+    checkSession()
+  }, [supabase.auth])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     setIsLoading(true)
-    setMessage(null)
+
+    // Validate passwords
+    if (password !== confirmPassword) {
+      toast({
+        title: "Passwords do not match",
+        description: "Please make sure your passwords match.",
+        variant: "destructive",
+      })
+      setIsLoading(false)
+      return
+    }
 
     try {
-      const result = await updatePassword(formData)
+      const { error } = await supabase.auth.updateUser({
+        password,
+      })
 
-      if (result.error) {
-        setMessage({ type: "error", text: result.error })
-      } else if (result.success) {
-        setMessage({ type: "success", text: result.message })
-        // Redirect to login after successful password reset
-        setTimeout(() => {
-          router.push("/login")
-        }, 2000)
+      if (error) {
+        throw error
       }
-    } catch (error) {
-      setMessage({ type: "error", text: "An unexpected error occurred" })
+
+      toast({
+        title: "Password updated",
+        description: "Your password has been successfully updated.",
+      })
+
+      // Redirect to login page
+      router.push("/login")
+    } catch (error: any) {
+      console.error("Password reset error:", error)
+      toast({
+        title: "Password reset failed",
+        description: error.message || "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
   }
 
+  if (!isValidLink) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center">Invalid or Expired Link</CardTitle>
+            <CardDescription className="text-center">
+              This password reset link is invalid or has expired.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter>
+            <Button className="w-full" onClick={() => router.push("/forgot-password")}>
+              Request New Reset Link
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Set New Password</CardTitle>
-          <CardDescription>Enter your new password below</CardDescription>
+          <div className="flex justify-center mb-4">
+            <div className="flex items-center gap-2 font-bold text-2xl">
+              <span className="text-primary">SSG</span> Digi
+            </div>
+          </div>
+          <CardTitle className="text-2xl font-bold text-center">Reset Password</CardTitle>
+          <CardDescription className="text-center">Enter your new password</CardDescription>
         </CardHeader>
-        <CardContent>
-          {message && (
-            <Alert className={`mb-4 ${message.type === "success" ? "bg-green-50" : "bg-red-50"}`}>
-              <AlertDescription className={message.type === "success" ? "text-green-800" : "text-red-800"}>
-                {message.text}
-              </AlertDescription>
-            </Alert>
-          )}
-          <form action={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                New Password
-              </label>
+              <Label htmlFor="password">New Password</Label>
               <Input
                 id="password"
-                name="password"
                 type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
-                className="block w-full rounded-md border-gray-300 shadow-sm"
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-                Confirm New Password
-              </label>
+              <Label htmlFor="confirmPassword">Confirm New Password</Label>
               <Input
                 id="confirmPassword"
-                name="confirmPassword"
                 type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                className="block w-full rounded-md border-gray-300 shadow-sm"
               />
             </div>
-            <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading ? "Updating..." : "Update Password"}
+          </CardContent>
+          <CardFooter className="flex flex-col gap-2">
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                "Reset Password"
+              )}
             </Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex justify-center">
-          <p className="text-sm text-gray-600">Your password will be updated securely</p>
-        </CardFooter>
+            <div className="text-center text-sm mt-2">
+              Remember your password?{" "}
+              <Link href="/login" className="text-primary hover:underline">
+                Sign in
+              </Link>
+            </div>
+          </CardFooter>
+        </form>
       </Card>
     </div>
   )
