@@ -43,6 +43,9 @@ export default function RegisterPage() {
     }
 
     try {
+      // Get the current URL for local development or production
+      const baseUrl = window.location.origin
+
       // 1. Sign up with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
@@ -53,7 +56,7 @@ export default function RegisterPage() {
             student_id: studentId,
             department,
           },
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
+          emailRedirectTo: `${baseUrl}/auth/callback`,
         },
       })
 
