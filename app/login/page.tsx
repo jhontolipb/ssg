@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -11,8 +11,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2 } from "lucide-react"
-import { getSupabaseBrowserClient } from "@/lib/supabase/supabaseBrowserClient"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { getSupabaseBrowserClient } from "@/lib/supabase/supabaseBrowserClient"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -25,12 +25,24 @@ export default function LoginPage() {
 
   const isRegistered = searchParams.get("registered") === "true"
 
+  // Check if user is already logged in
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (data.session) {
+        router.push("/dashboard")
+      }
+    }
+
+    checkSession()
+  }, [router, supabase])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
@@ -39,9 +51,15 @@ export default function LoginPage() {
         throw error
       }
 
-      // Redirect to dashboard on successful login
-      router.push("/dashboard")
-      router.refresh()
+      if (data.session) {
+        toast({
+          title: "Login successful",
+          description: "Welcome back to SSG Digi!",
+        })
+
+        // Force redirect to dashboard
+        window.location.href = "/dashboard"
+      }
     } catch (error: any) {
       console.error("Login error:", error)
       toast({

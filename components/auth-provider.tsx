@@ -3,8 +3,8 @@
 import type React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
-import { getBrowserClient } from "@/utils/supabase"
+import { useRouter, usePathname } from "next/navigation"
+import { getSupabaseBrowserClient } from "@/lib/supabase/supabaseBrowserClient"
 
 type User = {
   id: string
@@ -33,7 +33,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const supabase = getBrowserClient()
+  const pathname = usePathname()
+  const supabase = getSupabaseBrowserClient()
 
   useEffect(() => {
     const getUser = async () => {
@@ -101,20 +102,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             name: profile.name || "",
             role: profile.role || "student",
           })
+
+          // Redirect to dashboard on sign in
+          if (pathname === "/login" || pathname === "/register") {
+            router.push("/dashboard")
+          }
         }
       } else if (event === "SIGNED_OUT") {
         setUser(null)
+        if (pathname.startsWith("/dashboard")) {
+          router.push("/login")
+        }
       }
     })
 
     return () => {
       authListener.subscription.unsubscribe()
     }
-  }, [supabase])
+  }, [supabase, router, pathname])
+
+  // Protect routes
+  useEffect(() => {
+    if (!loading) {
+      const publicRoutes = ["/", "/login", "/register", "/forgot-password", "/reset-password"]
+      const isPublicRoute = publicRoutes.includes(pathname) || pathname.startsWith("/auth/")
+
+      if (!user && !isPublicRoute) {
+        router.push("/login")
+      } else if (user && (pathname === "/login" || pathname === "/register")) {
+        router.push("/dashboard")
+      }
+    }
+  }, [user, loading, pathname, router])
 
   const login = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
@@ -124,7 +147,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return false
       }
 
-      return true
+      if (data.session) {
+        // Force redirect to dashboard
+        window.location.href = "/dashboard"
+        return true
+      }
+
+      return false
     } catch (error) {
       console.error("Login error:", error)
       return false
@@ -133,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     await supabase.auth.signOut()
-    router.push("/login")
+    window.location.href = "/login"
   }
 
   const register = async (email: string, password: string, name: string, studentId: string, department: string) => {
@@ -142,6 +171,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            name,
+            student_id: studentId,
+            department,
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       })
 
       if (error || !data.user) {
