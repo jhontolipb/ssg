@@ -46,10 +46,17 @@ export async function signUp(formData: FormData) {
 
   const supabase = getServerClient()
 
-  // Create auth user
+  // Step 1: Create auth user with Supabase Auth
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
+    options: {
+      data: {
+        name,
+        student_id: studentId,
+        department,
+      },
+    },
   })
 
   if (error || !data.user) {
@@ -58,7 +65,8 @@ export async function signUp(formData: FormData) {
     }
   }
 
-  // Create user profile
+  // Step 2: Create user profile in your custom users table
+  // Note: We don't store the password or password hash here
   const { error: profileError } = await supabase.from("users").insert({
     id: data.user.id,
     email,
@@ -66,6 +74,7 @@ export async function signUp(formData: FormData) {
     student_id: studentId || null,
     department: department || null,
     role: "student", // Default role
+    // Don't include password_hash here!
   })
 
   if (profileError) {

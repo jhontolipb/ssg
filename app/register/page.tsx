@@ -3,65 +3,95 @@
 import type React from "react"
 
 import { useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/components/ui/use-toast"
 import { Loader2 } from "lucide-react"
-import { getBrowserClient } from "@/utils/supabase"
+import { getSupabaseBrowserClient } from "@/lib/supabase/supabaseBrowserClient"
+import { UserRole } from "@/lib/types"
 
 export default function RegisterPage() {
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [studentId, setStudentId] = useState("")
   const [department, setDepartment] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = getBrowserClient()
+  const { toast } = useToast()
+  const supabase = getSupabaseBrowserClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    setError(null)
+
+    // Validate form
+    if (password !== confirmPassword) {
+      toast({
+        title: "Passwords do not match",
+        description: "Please make sure your passwords match.",
+        variant: "destructive",
+      })
+      setIsLoading(false)
+      return
+    }
 
     try {
-      // Create auth user
-      const { data, error } = await supabase.auth.signUp({
+      // 1. Sign up with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            name,
+            student_id: studentId,
+            department,
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       })
 
-      if (error || !data.user) {
-        setError(error?.message || "Failed to create account")
-        setIsLoading(false)
-        return
+      if (authError) {
+        throw authError
       }
 
-      // Create user profile
-      const { error: profileError } = await supabase.from("users").insert({
-        id: data.user.id,
-        email,
-        name,
-        student_id: studentId || null,
-        department: department || null,
-        role: "student", // Default role
-      })
+      if (authData.user) {
+        // 2. Create user profile in the database
+        const { error: profileError } = await supabase.from("users").insert({
+          id: authData.user.id,
+          name,
+          email,
+          password_hash: password, // This will be properly hashed by the database trigger
+          role: UserRole.STUDENT, // Default role for new registrations
+          department,
+          student_id: studentId,
+        })
 
-      if (profileError) {
-        setError(profileError.message)
-        setIsLoading(false)
-        return
+        if (profileError) {
+          throw profileError
+        }
+
+        toast({
+          title: "Registration successful",
+          description: "Please check your email to confirm your account.",
+        })
+
+        // Redirect to login page
+        router.push("/login?registered=true")
       }
-
-      router.push("/login?registered=true")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Registration error:", error)
-      setError("An unexpected error occurred. Please try again.")
+      toast({
+        title: "Registration failed",
+        description: error.message || "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -79,67 +109,82 @@ export default function RegisterPage() {
           <CardTitle className="text-2xl font-bold text-center">Create an account</CardTitle>
           <CardDescription className="text-center">Enter your information to register</CardDescription>
         </CardHeader>
-        {error && (
-          <div className="px-6">
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          </div>
-        )}
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
-              <Input
-                id="name"
-                type="text"
-                placeholder="John Doe"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-              />
+              <Input id="name" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="john.doe@example.com"
+                placeholder="john@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
+            </div>
+            <div className="grid gap-4 grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="studentId">Student ID</Label>
+                <Input
+                  id="studentId"
+                  placeholder="2023-CS-001"
+                  value={studentId}
+                  onChange={(e) => setStudentId(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="department">Department</Label>
+                <Select value={department} onValueChange={setDepartment} required>
+                  <SelectTrigger id="department">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Computer Science">Computer Science</SelectItem>
+                    <SelectItem value="Business Administration">Business Administration</SelectItem>
+                    <SelectItem value="Engineering">Engineering</SelectItem>
+                    <SelectItem value="Education">Education</SelectItem>
+                    <SelectItem value="Fine Arts">Fine Arts</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="studentId">Student ID (Optional)</Label>
+              <Label htmlFor="confirmPassword">Confirm Password</Label>
               <Input
-                id="studentId"
-                type="text"
-                placeholder="2023-12345"
-                value={studentId}
-                onChange={(e) => setStudentId(e.target.value)}
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="department">Department (Optional)</Label>
-              <Input
-                id="department"
-                type="text"
-                placeholder="Computer Science"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-              />
+            <div className="text-sm text-muted-foreground">
+              <p>
+                By registering, you agree to the{" "}
+                <Link href="#" className="text-primary hover:underline">
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link href="#" className="text-primary hover:underline">
+                  Privacy Policy
+                </Link>
+                .
+              </p>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-2">
