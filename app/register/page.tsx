@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2 } from "lucide-react"
-import { getSupabaseBrowserClient } from "@/lib/supabase"
+import { getBrowserClient } from "@/utils/supabase"
 
 export default function RegisterPage() {
   const [name, setName] = useState("")
@@ -22,7 +22,7 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = getSupabaseBrowserClient()
+  const supabase = getBrowserClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

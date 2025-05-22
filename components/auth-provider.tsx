@@ -3,8 +3,8 @@
 import type React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
-import { getSupabaseBrowserClient } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
+import { getBrowserClient } from "@/utils/supabase"
 
 type User = {
   id: string
@@ -33,7 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
-  const supabase = getSupabaseBrowserClient()
+  const supabase = getBrowserClient()
 
   useEffect(() => {
     const getUser = async () => {

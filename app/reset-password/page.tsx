@@ -5,37 +5,34 @@ import { useRouter } from "next/navigation"
 import { updatePassword } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function ResetPasswordPage() {
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
   async function handleSubmit(formData: FormData) {
-    setLoading(true)
-    setError(null)
-    setSuccess(null)
+    setIsLoading(true)
+    setMessage(null)
 
     try {
       const result = await updatePassword(formData)
-      if (result?.error) {
-        setError(result.error)
-      } else if (result?.success) {
-        setSuccess(result.message)
-        // Redirect to login after 2 seconds
+
+      if (result.error) {
+        setMessage({ type: "error", text: result.error })
+      } else if (result.success) {
+        setMessage({ type: "success", text: result.message })
+        // Redirect to login after successful password reset
         setTimeout(() => {
           router.push("/login")
         }, 2000)
       }
-    } catch (err) {
-      setError("An unexpected error occurred. Please try again.")
-      console.error(err)
+    } catch (error) {
+      setMessage({ type: "error", text: "An unexpected error occurred" })
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
@@ -43,38 +40,49 @@ export default function ResetPasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Set new password</CardTitle>
-          <CardDescription>Enter your new password</CardDescription>
+          <CardTitle className="text-2xl font-bold">Set New Password</CardTitle>
+          <CardDescription>Enter your new password below</CardDescription>
         </CardHeader>
         <CardContent>
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-          {success && (
-            <Alert className="mb-4 bg-green-50 text-green-800">
-              <AlertDescription>{success}</AlertDescription>
+          {message && (
+            <Alert className={`mb-4 ${message.type === "success" ? "bg-green-50" : "bg-red-50"}`}>
+              <AlertDescription className={message.type === "success" ? "text-green-800" : "text-red-800"}>
+                {message.text}
+              </AlertDescription>
             </Alert>
           )}
           <form action={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="password">New Password</Label>
-              <Input id="password" name="password" type="password" required />
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                New Password
+              </label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                required
+                className="block w-full rounded-md border-gray-300 shadow-sm"
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input id="confirmPassword" name="confirmPassword" type="password" required />
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+                Confirm New Password
+              </label>
+              <Input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                required
+                className="block w-full rounded-md border-gray-300 shadow-sm"
+              />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Updating password..." : "Update password"}
+            <Button type="submit" disabled={isLoading} className="w-full">
+              {isLoading ? "Updating..." : "Update Password"}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="flex justify-center">
-          <p className="text-sm text-gray-600">
-            Password updated successfully. You will be redirected to the login page.
-          </p>
+          <p className="text-sm text-gray-600">Your password will be updated securely</p>
         </CardFooter>
       </Card>
     </div>

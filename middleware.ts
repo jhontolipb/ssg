@@ -2,31 +2,31 @@ import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
-export async function middleware(req: NextRequest) {
-  const res = NextResponse.next()
-  const pathname = req.nextUrl.pathname
+export async function middleware(request: NextRequest) {
+  const response = NextResponse.next()
+  const supabase = createMiddlewareClient({ req: request, res: response })
 
-  // Create a Supabase client configured to use cookies
-  const supabase = createMiddlewareClient({ req, res })
-
-  // Refresh session if expired - required for Server Components
   const {
     data: { session },
   } = await supabase.auth.getSession()
 
-  // Protected routes - redirect to login if not authenticated
-  if (pathname.startsWith("/dashboard") && !session) {
-    const redirectUrl = new URL("/login", req.url)
+  // Check if the user is authenticated
+  const isAuthenticated = !!session
+  const isAuthRoute = request.nextUrl.pathname === "/login" || request.nextUrl.pathname === "/register"
+
+  // If the user is not authenticated and trying to access a protected route
+  if (!isAuthenticated && !isAuthRoute && request.nextUrl.pathname.startsWith("/dashboard")) {
+    const redirectUrl = new URL("/login", request.url)
     return NextResponse.redirect(redirectUrl)
   }
 
-  // Redirect to dashboard if already logged in and trying to access auth pages
-  if ((pathname === "/login" || pathname === "/register") && session) {
-    const redirectUrl = new URL("/dashboard", req.url)
+  // If the user is authenticated and trying to access an auth route
+  if (isAuthenticated && isAuthRoute) {
+    const redirectUrl = new URL("/dashboard", request.url)
     return NextResponse.redirect(redirectUrl)
   }
 
-  return res
+  return response
 }
 
 export const config = {

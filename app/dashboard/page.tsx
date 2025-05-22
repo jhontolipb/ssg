@@ -3,33 +3,17 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { UserRole } from "@/lib/types"
 import { Calendar, CheckCircle, Clock, FileCheck, Users, XCircle } from "lucide-react"
 import { DashboardCharts } from "@/components/dashboard-charts"
 import { RecentEvents } from "@/components/recent-events"
 import { UpcomingEvents } from "@/components/upcoming-events"
 import { PendingClearances } from "@/components/pending-clearances"
 import { RecentNotifications } from "@/components/recent-notifications"
-import { getSupabaseBrowserClient, getSupabaseServerClient } from "@/lib/supabase"
-import { redirect } from "next/navigation"
+import { useAuth } from "@/components/auth-provider"
+import { getBrowserClient } from "@/utils/supabase"
 
-export default async function DashboardPage() {
-  const supabase = getSupabaseServerClient()
-
-  // Check if user is authenticated
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session) {
-    redirect("/login")
-  }
-
-  // Get user data
-  const { data: userData } = await supabase.from("users").select("*").eq("id", session.user.id).single()
-
-  const userRole = userData?.role || "student"
-
+export default function DashboardPage() {
+  const { user, loading: authLoading } = useAuth()
   const [stats, setStats] = useState({
     totalStudents: 0,
     activeOrganizations: 0,
@@ -39,30 +23,30 @@ export default async function DashboardPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (authLoading || !user) return
+
     const fetchDashboardStats = async () => {
-      const supabaseClient = getSupabaseBrowserClient()
+      const supabase = getBrowserClient()
 
       try {
         // Fetch total students count
-        const { count: studentsCount } = await supabaseClient
+        const { count: studentsCount } = await supabase
           .from("users")
           .select("*", { count: "exact", head: true })
           .eq("role", "student")
 
         // Fetch organizations count
-        const { count: orgsCount } = await supabaseClient
-          .from("organizations")
-          .select("*", { count: "exact", head: true })
+        const { count: orgsCount } = await supabase.from("organizations").select("*", { count: "exact", head: true })
 
         // Fetch upcoming events count
         const today = new Date().toISOString().split("T")[0]
-        const { count: eventsCount } = await supabaseClient
+        const { count: eventsCount } = await supabase
           .from("events")
           .select("*", { count: "exact", head: true })
           .gte("date", today)
 
         // Fetch pending clearances count
-        const { count: clearancesCount } = await supabaseClient
+        const { count: clearancesCount } = await supabase
           .from("clearances")
           .select("*", { count: "exact", head: true })
           .eq("status", "pending")
@@ -81,19 +65,31 @@ export default async function DashboardPage() {
     }
 
     fetchDashboardStats()
-  }, [])
+  }, [authLoading, user])
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return null
+  }
 
   // Different dashboard views based on user role
   const renderDashboard = () => {
-    switch (userRole) {
-      case UserRole.SSG_ADMIN:
+    switch (user.role) {
+      case "ssg_admin":
         return <AdminDashboard stats={stats} loading={loading} />
-      case UserRole.CLUB_ADMIN:
-      case UserRole.DEPARTMENT_ADMIN:
+      case "club_admin":
+      case "department_admin":
         return <OrgAdminDashboard stats={stats} loading={loading} />
-      case UserRole.OFFICER:
+      case "officer":
         return <OfficerDashboard stats={stats} loading={loading} />
-      case UserRole.STUDENT:
+      case "student":
         return <StudentDashboard stats={stats} loading={loading} />
       default:
         return <StudentDashboard stats={stats} loading={loading} />
@@ -102,31 +98,8 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
+      <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <DashboardCharts />
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <div className="col-span-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            {userRole === "student" ? (
-              <>
-                <UpcomingEvents />
-                <RecentEvents />
-              </>
-            ) : (
-              <>
-                <RecentEvents />
-                <PendingClearances />
-              </>
-            )}
-          </div>
-        </div>
-        <div className="col-span-3">
-          <RecentNotifications />
-        </div>
       </div>
       {renderDashboard()}
     </div>

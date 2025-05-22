@@ -3,7 +3,7 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 import { createServerActionClient } from "@supabase/auth-helpers-nextjs"
-import { getSupabaseServerClient } from "@/lib/supabase"
+import { getServerClient } from "@/utils/supabase"
 
 export async function signIn(formData: FormData) {
   const email = formData.get("email") as string
@@ -15,7 +15,7 @@ export async function signIn(formData: FormData) {
     }
   }
 
-  const supabase = getSupabaseServerClient()
+  const supabase = getServerClient()
 
   const { error } = await supabase.auth.signInWithPassword({
     email,
@@ -44,7 +44,7 @@ export async function signUp(formData: FormData) {
     }
   }
 
-  const supabase = getSupabaseServerClient()
+  const supabase = getServerClient()
 
   // Create auth user
   const { data, error } = await supabase.auth.signUp({
@@ -82,4 +82,65 @@ export async function signOut() {
   const supabase = createServerActionClient({ cookies: () => cookieStore })
   await supabase.auth.signOut()
   redirect("/login")
+}
+
+export async function resetPassword(formData: FormData) {
+  const email = formData.get("email") as string
+
+  if (!email) {
+    return {
+      error: "Email is required",
+    }
+  }
+
+  const supabase = getServerClient()
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/reset-password`,
+  })
+
+  if (error) {
+    return {
+      error: error.message,
+    }
+  }
+
+  return {
+    success: true,
+    message: "Password reset link sent to your email",
+  }
+}
+
+export async function updatePassword(formData: FormData) {
+  const password = formData.get("password") as string
+  const confirmPassword = formData.get("confirmPassword") as string
+
+  if (!password || !confirmPassword) {
+    return {
+      error: "Password and confirmation are required",
+    }
+  }
+
+  if (password !== confirmPassword) {
+    return {
+      error: "Passwords do not match",
+    }
+  }
+
+  const supabase = getServerClient()
+
+  const { error } = await supabase.auth.updateUser({
+    password,
+  })
+
+  if (error) {
+    return {
+      error: error.message,
+    }
+  }
+
+  return {
+    success: true,
+    message: "Password updated successfully",
+  }
 }

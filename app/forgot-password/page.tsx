@@ -5,35 +5,29 @@ import Link from "next/link"
 import { resetPassword } from "@/app/actions/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function ForgotPasswordPage() {
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
 
   async function handleSubmit(formData: FormData) {
-    setLoading(true)
-    setError(null)
-    setSuccess(null)
+    setIsLoading(true)
+    setMessage(null)
 
     try {
       const result = await resetPassword(formData)
-      if (result?.error) {
-        setError(result.error)
-      } else if (result?.success) {
-        setSuccess(result.message)
-        // Clear the form
-        const form = document.getElementById("reset-form") as HTMLFormElement
-        form.reset()
+
+      if (result.error) {
+        setMessage({ type: "error", text: result.error })
+      } else if (result.success) {
+        setMessage({ type: "success", text: result.message })
       }
-    } catch (err) {
-      setError("An unexpected error occurred. Please try again.")
-      console.error(err)
+    } catch (error) {
+      setMessage({ type: "error", text: "An unexpected error occurred" })
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
@@ -41,37 +35,40 @@ export default function ForgotPasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold">Reset your password</CardTitle>
-          <CardDescription>Enter your email to receive a password reset link</CardDescription>
+          <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
+          <CardDescription>Enter your email address and we'll send you a link to reset your password</CardDescription>
         </CardHeader>
         <CardContent>
-          {error && (
-            <Alert variant="destructive" className="mb-4">
-              <AlertDescription>{error}</AlertDescription>
+          {message && (
+            <Alert className={`mb-4 ${message.type === "success" ? "bg-green-50" : "bg-red-50"}`}>
+              <AlertDescription className={message.type === "success" ? "text-green-800" : "text-red-800"}>
+                {message.text}
+              </AlertDescription>
             </Alert>
           )}
-          {success && (
-            <Alert className="mb-4 bg-green-50 text-green-800">
-              <AlertDescription>{success}</AlertDescription>
-            </Alert>
-          )}
-          <form id="reset-form" action={handleSubmit} className="space-y-4">
+          <form action={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" required />
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                Email
+              </label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                className="block w-full rounded-md border-gray-300 shadow-sm"
+              />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Sending reset link..." : "Send reset link"}
+            <Button type="submit" disabled={isLoading} className="w-full">
+              {isLoading ? "Sending..." : "Send Reset Link"}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="flex justify-center">
-          <p className="text-sm text-gray-600">
-            Remember your password?{" "}
-            <Link href="/login" className="text-blue-600 hover:text-blue-500">
-              Sign in
-            </Link>
-          </p>
+          <Link href="/login" className="text-sm text-blue-600 hover:text-blue-500">
+            Back to login
+          </Link>
         </CardFooter>
       </Card>
     </div>
